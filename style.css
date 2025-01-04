@@ -165,15 +165,3 @@
         margin-top: 5px;
     }
 }
-
-.textarea-highlight {
-    z-index: 1000;
-    font-family: var(--mainFontFamily);
-    font-size: var(--mainFontSize);
-    max-width: 80%;
-    word-wrap: break-word;
-}
-
-.ctx-menu {
-    z-index: 10000; /* Ensure menu appears above other elements */
-}
