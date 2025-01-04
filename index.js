@@ -29,13 +29,16 @@ const defaultSettings = {
     expandPreset: "",
     highlightDuration: 3000,
     selectedModel: "chat_completion",
-    textRewritePrompt: `[INST]Rewrite this section of text: """{{rewrite}}""" while keeping the same content, general style and length. Do not list alternatives and only print the result without prefix or suffix.[/INST]
+    textRewritePrompt: `
+Rewrite this section of text: """{{rewrite}}""" while keeping the same content, general style and length. Do not list alternatives and only print the result without prefix or suffix.
 
 Sure, here is only the rewritten text without any comments: `,
-    textShortenPrompt: `[INST]Rewrite this section of text: """{{rewrite}}""" while keeping the same content, general style. Do not list alternatives and only print the result without prefix or suffix. Shorten it by roughly 20%.[/INST]
+    textShortenPrompt: `
+Rewrite this section of text: """{{rewrite}}""" while keeping the same content, general style. Do not list alternatives and only print the result without prefix or suffix. Shorten it by roughly 20%.
 
 Sure, here is only the rewritten text without any comments: `,
-    textExpandPrompt: `[INST]Rewrite this section of text: """{{rewrite}}""" while keeping the same content, general style. Do not list alternatives and only print the result without prefix or suffix. Lengthen it by roughly 20%.[/INST]
+    textExpandPrompt: `
+Rewrite this section of text: """{{rewrite}}""" while keeping the same content, general style. Do not list alternatives and only print the result without prefix or suffix. Lengthen it by roughly 20%.
 
 Sure, here is only the rewritten text without any comments: `,
     useStreaming: true,
@@ -333,6 +336,47 @@ function processSelection() {
     lastSelection = selectedText.length > 0 ? selectedText : null;
 }
 
+function positionMenu() {
+    if (!rewriteMenu) return;
+
+    // Get the selection or textarea, depending on context
+    const sendTextarea = document.getElementById('send_textarea');
+    const isTextarea = document.activeElement === sendTextarea;
+
+    if (isTextarea) {
+        // Position menu above textarea
+        const textareaRect = sendTextarea.getBoundingClientRect();
+        const menuHeight = rewriteMenu.offsetHeight;
+        
+        rewriteMenu.style.left = `${textareaRect.left}px`;
+        rewriteMenu.style.top = `${textareaRect.top - menuHeight - 5}px`;
+    } else {
+        // Original positioning for chat text
+        let selection = window.getSelection();
+        let range = selection.getRangeAt(0);
+        let rect = range.getBoundingClientRect();
+
+        let left = rect.left + window.pageXOffset;
+        let top = rect.bottom + window.pageYOffset + 5;
+
+        // Adjust for viewport boundaries
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const menuWidth = rewriteMenu.offsetWidth;
+        const menuHeight = rewriteMenu.offsetHeight;
+
+        if (left + menuWidth > viewportWidth) {
+            left = viewportWidth - menuWidth;
+        }
+        if (top + menuHeight > viewportHeight) {
+            top = rect.top + window.pageYOffset - menuHeight - 5;
+        }
+
+        rewriteMenu.style.left = `${left}px`;
+        rewriteMenu.style.top = `${top}px`;
+    }
+}
+
 async function handleMenuItemClick(e) {
     e.preventDefault();
     e.stopPropagation();
@@ -347,7 +391,7 @@ async function handleMenuItemClick(e) {
             if (option === 'Delete') {
                 handleTextareaDelete(sendTextarea);
             } else {
-                await handleTextareaRewrite(sendTextarea, option);
+                await handleTextareaRewritten(sendTextarea, option);
             }
         }
     } else {
@@ -366,7 +410,7 @@ async function handleMenuItemClick(e) {
                     if (option === 'Delete') {
                         await handleDeleteSelection(mesId, swipeId);
                     } else {
-                        await handleRewrite(mesId, swipeId, option);
+                        await handleRewritten(mesId, swipeId, option);
                     }
                 }
             }
@@ -417,7 +461,7 @@ function createRewriteMenu(isTextarea) {
     rewriteMenu.style.position = 'fixed';
 
     const options = [
-        { name: 'Rewrite', show: extension_settings[extensionName].showRewrite },
+        { name: 'Rewritten', show: extension_settings[extensionName].showRewritten },
         { name: 'Shorten', show: extension_settings[extensionName].showShorten },
         { name: 'Expand', show: extension_settings[extensionName].showExpand },
         { name: 'Delete', show: extension_settings[extensionName].showDelete }
@@ -438,47 +482,6 @@ function createRewriteMenu(isTextarea) {
     positionMenu();
 }
 
-function positionMenu() {
-    if (!rewriteMenu) return;
-
-    // Get the selection or textarea, depending on context
-    const sendTextarea = document.getElementById('send_textarea');
-    const isTextarea = document.activeElement === sendTextarea;
-
-    if (isTextarea) {
-        // Position menu above textarea
-        const textareaRect = sendTextarea.getBoundingClientRect();
-        const menuHeight = rewriteMenu.offsetHeight;
-        
-        rewriteMenu.style.left = `${textareaRect.left}px`;
-        rewriteMenu.style.top = `${textareaRect.top - menuHeight - 5}px`;
-    } else {
-        // Original positioning for chat text
-        let selection = window.getSelection();
-        let range = selection.getRangeAt(0);
-        let rect = range.getBoundingClientRect();
-
-        let left = rect.left + window.pageXOffset;
-        let top = rect.bottom + window.pageYOffset + 5;
-
-        // Adjust for viewport boundaries
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
-        const menuWidth = rewriteMenu.offsetWidth;
-        const menuHeight = rewriteMenu.offsetHeight;
-
-        if (left + menuWidth > viewportWidth) {
-            left = viewportWidth - menuWidth;
-        }
-        if (top + menuHeight > viewportHeight) {
-            top = rect.top + window.pageYOffset - menuHeight - 5;
-        }
-
-        rewriteMenu.style.left = `${left}px`;
-        rewriteMenu.style.top = `${top}px`;
-    }
-}
-
 function removeRewriteMenu() {
     if (rewriteMenu) {
         rewriteMenu.remove();
@@ -492,8 +495,8 @@ function addUndoButton(mesId) {
         const mesButtons = messageDiv.querySelector('.mes_buttons');
         if (mesButtons) {
             const undoButton = document.createElement('div');
-            undoButton.className = 'mes_button mes_undo_rewrite fa-solid fa-undo interactable';
-            undoButton.title = 'Undo rewrite';
+            undoButton.className = 'mes_button mes_undo_rewritten fa-solid fa-undo interactable';
+            undoButton.title = 'Undo rewritten';
             undoButton.dataset.mesId = mesId;
             undoButton.addEventListener('click', handleUndo);
 
@@ -704,27 +707,27 @@ function saveLastChange(mesId, swipeId, originalContent, newContent) {
 
 function updateUndoButtons() {
     // Remove all existing undo buttons
-    document.querySelectorAll('.mes_undo_rewrite').forEach(button => button.remove());
+    document.querySelectorAll('.mes_undo_rewritten').forEach(button => button.remove());
 
     // Add undo buttons for all messages with changes
     const changedMessageIds = [...new Set(changeHistory.map(change => change.mesId))];
     changedMessageIds.forEach(mesId => addUndoButton(mesId));
 }
 
-async function handleRewrite(mesId, swipeId, option) {
+async function handleRewritten(mesId, swipeId, option) {
     if (main_api === 'openai') {
         const selectedModel = extension_settings[extensionName].selectedModel;
         if (selectedModel === 'chat_completion') {
-            return handleChatCompletionRewrite(mesId, swipeId, option);
+            return handleChatCompletionRewritten(mesId, swipeId, option);
         } else {
-            return handleSimplifiedChatCompletionRewrite(mesId, swipeId, option);
+            return handleSimplifiedChatCompletionRewritten(mesId, swipeId, option);
         }
     } else {
-        return handleTextBasedRewrite(mesId, swipeId, option);
+        return handleTextBasedRewritten(mesId, swipeId, option);
     }
 }
 
-async function handleChatCompletionRewrite(mesId, swipeId, option) {
+async function handleChatCompletionRewritten(mesId, swipeId, option) {
     const mesDiv = document.querySelector(`[mesid="${mesId}"] .mes_text`);
     if (!mesDiv) return; // Exit if we can't find the message div
 
@@ -733,8 +736,8 @@ async function handleChatCompletionRewrite(mesId, swipeId, option) {
     // Get the selected preset based on the option
     let selectedPreset;
     switch (option) {
-        case 'Rewrite':
-            selectedPreset = extension_settings[extensionName].rewritePreset;
+        case 'Rewritten':
+            selectedPreset = extension_settings[extensionName].rewrittenPreset;
             break;
         case 'Shorten':
             selectedPreset = extension_settings[extensionName].shortenPreset;
@@ -801,23 +804,23 @@ async function handleChatCompletionRewrite(mesId, swipeId, option) {
     // Get amount of words
     const wordCount = extractAllWords(selectedRawText).length;
 
-    // Substitute {{rewrite}} macro with the selected text directly in the promptData.chat
+    // Substitute {{rewritten}} macro with the selected text directly in the promptData.chat
     promptData.chat = promptData.chat.map(message => {
         if (Array.isArray(message.content)) {
             // If content is an array, process only the text entries
             message.content = message.content.map(item => {
                 if (item.type === 'text') {
-                    item.text = item.text.replace(/{{rewrite}}/gi, selectedRawText);
+                    item.text = item.text.replace(/{{rewritten}}/gi, selectedRawText);
                     item.text = item.text.replace(/{{targetmessage}}/gi, fullMessage);
-                    item.text = item.text.replace(/{{rewritecount}}/gi, wordCount);
+                    item.text = item.text.replace(/{{rewrittencount}}/gi, wordCount);
                 }
                 return item;
             });
         } else if (typeof message.content === 'string') {
             // If content is a string, process it directly
-            message.content = message.content.replace(/{{rewrite}}/gi, selectedRawText);
+            message.content = message.content.replace(/{{rewritten}}/gi, selectedRawText);
             message.content = message.content.replace(/{{targetmessage}}/gi, fullMessage);
-            message.content = message.content.replace(/{{rewritecount}}/gi, wordCount);
+            message.content = message.content.replace(/{{rewrittencount}}/gi, wordCount);
         }
         return message;
     });
@@ -876,7 +879,7 @@ async function handleChatCompletionRewrite(mesId, swipeId, option) {
     getContext().activateSendButtons();
 }
 
-async function handleSimplifiedChatCompletionRewrite(mesId, swipeId, option) {
+async function handleSimplifiedChatCompletionRewritten(mesId, swipeId, option) {
     const mesDiv = document.querySelector(`[mesid="${mesId}"] .mes_text`);
     if (!mesDiv) return; // Exit if we can't find the message div
 
@@ -885,8 +888,8 @@ async function handleSimplifiedChatCompletionRewrite(mesId, swipeId, option) {
     // Get the text completion prompt based on the option
     let promptTemplate;
     switch (option) {
-        case 'Rewrite':
-            promptTemplate = extension_settings[extensionName].textRewritePrompt;
+        case 'Rewritten':
+            promptTemplate = extension_settings[extensionName].textRewrittenPrompt;
             break;
         case 'Shorten':
             promptTemplate = extension_settings[extensionName].textShortenPrompt;
@@ -905,9 +908,9 @@ async function handleSimplifiedChatCompletionRewrite(mesId, swipeId, option) {
     let prompt = getContext().substituteParams(promptTemplate);
 
     prompt = prompt
-        .replace(/{{rewrite}}/gi, selectedRawText)
+        .replace(/{{rewritten}}/gi, selectedRawText)
         .replace(/{{targetmessage}}/gi, fullMessage)
-        .replace(/{{rewritecount}}/gi, wordCount);
+        .replace(/{{rewrittencount}}/gi, wordCount);
 
     // Create a simplified chat format
     const simplifiedChat = [
@@ -966,7 +969,7 @@ async function handleSimplifiedChatCompletionRewrite(mesId, swipeId, option) {
     getContext().activateSendButtons();
 }
 
-async function handleTextBasedRewrite(mesId, swipeId, option) {
+async function handleTextBasedRewritten(mesId, swipeId, option) {
     const mesDiv = document.querySelector(`[mesid="${mesId}"] .mes_text`);
     if (!mesDiv) return; // Exit if we can't find the message div
 
@@ -976,8 +979,8 @@ async function handleTextBasedRewrite(mesId, swipeId, option) {
     const selectedModel = extension_settings[extensionName].selectedModel;
     let promptTemplate;
     switch (option) {
-        case 'Rewrite':
-            promptTemplate = extension_settings[extensionName].textRewritePrompt;
+        case 'Rewritten':
+            promptTemplate = extension_settings[extensionName].textRewrittenPrompt;
             break;
         case 'Shorten':
             promptTemplate = extension_settings[extensionName].textShortenPrompt;
@@ -986,7 +989,7 @@ async function handleTextBasedRewrite(mesId, swipeId, option) {
             promptTemplate = extension_settings[extensionName].textExpandPrompt;
             break;
         default:
-            console.error('Unknown rewrite option:', option);
+            console.error('Unknown rewritten option:', option);
             return;
     }
 
@@ -997,9 +1000,9 @@ async function handleTextBasedRewrite(mesId, swipeId, option) {
     let prompt = getContext().substituteParams(promptTemplate);
 
     prompt = prompt
-        .replace(/{{rewrite}}/gi, selectedRawText)
+        .replace(/{{rewritten}}/gi, selectedRawText)
         .replace(/{{targetmessage}}/gi, fullMessage)
-        .replace(/{{rewritecount}}/gi, wordCount);
+        .replace(/{{rewrittencount}}/gi, wordCount);
 
     let generateData;
     let amount_gen;
@@ -1008,8 +1011,8 @@ async function handleTextBasedRewrite(mesId, swipeId, option) {
         amount_gen = calculateTargetTokenCount(selectedRawText, option);
     } else {
         switch (option) {
-            case 'Rewrite':
-                amount_gen = extension_settings[extensionName].rewriteTokens;
+            case 'Rewritten':
+                amount_gen = extension_settings[extensionName].rewrittenTokens;
                 break;
             case 'Shorten':
                 amount_gen = extension_settings[extensionName].shortenTokens;
@@ -1069,7 +1072,7 @@ async function handleTextBasedRewrite(mesId, swipeId, option) {
                 res = await generateNovelWithStreaming(generateData, abortController.signal);
                 break;
             case 'koboldhorde':
-                toastr.warning('Rewrite streaming not supported for Kobold. Turn off in rewrite settings.');
+                toastr.warning('Rewritten streaming not supported for Kobold. Turn off in rewritten settings.');
             default:
                 throw new Error('Streaming is enabled, but the current API does not support streaming.');
         }
@@ -1154,8 +1157,8 @@ function calculateTargetTokenCount(selectedText, option) {
         if (dynamicTokenMode === 'additive') {
             let modifier;
             switch (option) {
-                case 'Rewrite':
-                    modifier = extension_settings[extensionName].rewriteTokensAdd;
+                case 'Rewritten':
+                    modifier = extension_settings[extensionName].rewrittenTokensAdd;
                     break;
                 case 'Shorten':
                     modifier = extension_settings[extensionName].shortenTokensAdd;
@@ -1168,8 +1171,8 @@ function calculateTargetTokenCount(selectedText, option) {
         } else { // multiplicative
             let multiplier;
             switch (option) {
-                case 'Rewrite':
-                    multiplier = extension_settings[extensionName].rewriteTokensMult;
+                case 'Rewritten':
+                    multiplier = extension_settings[extensionName].rewrittenTokensMult;
                     break;
                 case 'Shorten':
                     multiplier = extension_settings[extensionName].shortenTokensMult;
@@ -1182,8 +1185,8 @@ function calculateTargetTokenCount(selectedText, option) {
         }
     } else {
         switch (option) {
-            case 'Rewrite':
-                result = extension_settings[extensionName].rewriteTokens;
+            case 'Rewritten':
+                result = extension_settings[extensionName].rewrittenTokens;
                 break;
             case 'Shorten':
                 result = extension_settings[extensionName].shortenTokens;
@@ -1305,7 +1308,7 @@ function handleTextareaDelete(textarea) {
     textarea.focus();
 }
 
-async function handleTextareaRewrite(textarea, option) {
+async function handleTextareaRewritten(textarea, option) {
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const selectedText = textarea.value.substring(start, end);
@@ -1315,12 +1318,12 @@ async function handleTextareaRewrite(textarea, option) {
     if (main_api === 'openai') {
         const selectedModel = extension_settings[extensionName].selectedModel;
         if (selectedModel === 'chat_completion') {
-            result = await handleChatCompletionRewrite(null, null, option);
+            result = await handleChatCompletionRewritten(null, null, option);
         } else {
-            result = await handleSimplifiedChatCompletionRewrite(null, null, option);
+            result = await handleSimplifiedChatCompletionRewritten(null, null, option);
         }
     } else {
-        result = await handleTextBasedRewrite(null, null, option);
+        result = await handleTextBasedRewritten(null, null, option);
     }
 
     if (result) {
@@ -1332,20 +1335,20 @@ async function handleTextareaRewrite(textarea, option) {
 }
 
 // Add these new helper functions for textarea rewriting
-async function handleChatCompletionRewriteForTextarea(selectedText, option, tempSpan) {
-    // Similar to handleChatCompletionRewrite but simplified for textarea
+async function handleChatCompletionRewrittenForTextarea(selectedText, option, tempSpan) {
+    // Similar to handleChatCompletionRewritten but simplified for textarea
     // Returns the rewritten text
-    // ... implementation similar to handleChatCompletionRewrite but without DOM manipulation ...
+    // ... implementation similar to handleChatCompletionRewritten but without DOM manipulation ...
 }
 
-async function handleSimplifiedChatCompletionRewriteForTextarea(selectedText, option, tempSpan) {
-    // Similar to handleSimplifiedChatCompletionRewrite but simplified for textarea
+async function handleSimplifiedChatCompletionRewrittenForTextarea(selectedText, option, tempSpan) {
+    // Similar to handleSimplifiedChatCompletionRewritten but simplified for textarea
     // Returns the rewritten text
-    // ... implementation similar to handleSimplifiedChatCompletionRewrite but without DOM manipulation ...
+    // ... implementation similar to handleSimplifiedChatCompletionRewritten but without DOM manipulation ...
 }
 
-async function handleTextBasedRewriteForTextarea(selectedText, option, tempSpan) {
-    // Similar to handleTextBasedRewrite but simplified for textarea
+async function handleTextBasedRewrittenForTextarea(selectedText, option, tempSpan) {
+    // Similar to handleTextBasedRewritten but simplified for textarea
     // Returns the rewritten text
-    // ... implementation similar to handleTextBasedRewrite but without DOM manipulation ...
+    // ... implementation similar to handleTextBasedRewritten but without DOM manipulation ...
 }
