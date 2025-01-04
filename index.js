@@ -441,32 +441,42 @@ function createRewriteMenu(isTextarea) {
 function positionMenu() {
     if (!rewriteMenu) return;
 
-    let selection = window.getSelection();
-    let range = selection.getRangeAt(0);
-    let rect = range.getBoundingClientRect();
+    // Get the selection or textarea, depending on context
+    const sendTextarea = document.getElementById('send_textarea');
+    const isTextarea = document.activeElement === sendTextarea;
 
-    // Calculate the menu's position
-    let left = rect.left + window.pageXOffset;
-    let top = rect.bottom + window.pageYOffset + 5;
+    if (isTextarea) {
+        // Position menu above textarea
+        const textareaRect = sendTextarea.getBoundingClientRect();
+        const menuHeight = rewriteMenu.offsetHeight;
+        
+        rewriteMenu.style.left = `${textareaRect.left}px`;
+        rewriteMenu.style.top = `${textareaRect.top - menuHeight - 5}px`;
+    } else {
+        // Original positioning for chat text
+        let selection = window.getSelection();
+        let range = selection.getRangeAt(0);
+        let rect = range.getBoundingClientRect();
 
-    // Get the viewport dimensions
-    let viewportWidth = window.innerWidth;
-    let viewportHeight = window.innerHeight;
+        let left = rect.left + window.pageXOffset;
+        let top = rect.bottom + window.pageYOffset + 5;
 
-    // Get the menu's dimensions
-    let menuWidth = rewriteMenu.offsetWidth;
-    let menuHeight = rewriteMenu.offsetHeight;
+        // Adjust for viewport boundaries
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const menuWidth = rewriteMenu.offsetWidth;
+        const menuHeight = rewriteMenu.offsetHeight;
 
-    // Adjust the position if the menu overflows the viewport
-    if (left + menuWidth > viewportWidth) {
-        left = viewportWidth - menuWidth;
+        if (left + menuWidth > viewportWidth) {
+            left = viewportWidth - menuWidth;
+        }
+        if (top + menuHeight > viewportHeight) {
+            top = rect.top + window.pageYOffset - menuHeight - 5;
+        }
+
+        rewriteMenu.style.left = `${left}px`;
+        rewriteMenu.style.top = `${top}px`;
     }
-    if (top + menuHeight > viewportHeight) {
-        top = rect.top + window.pageYOffset - menuHeight - 5;
-    }
-
-    rewriteMenu.style.left = `${left}px`;
-    rewriteMenu.style.top = `${top}px`;
 }
 
 function removeRewriteMenu() {
@@ -1301,44 +1311,23 @@ async function handleTextareaRewrite(textarea, option) {
     const selectedText = textarea.value.substring(start, end);
     const text = textarea.value;
 
-    // Create a temporary element to show the streaming result
-    const tempSpan = document.createElement('span');
-    tempSpan.className = 'animated-highlight textarea-highlight';
-    tempSpan.style.position = 'absolute';
-    
-    // Position the span near the textarea
-    const textareaRect = textarea.getBoundingClientRect();
-    tempSpan.style.left = `${textareaRect.left}px`;
-    tempSpan.style.top = `${textareaRect.top - 30}px`; // Position above the textarea
-    document.body.appendChild(tempSpan);
-
     let result;
-    try {
-        if (main_api === 'openai') {
-            const selectedModel = extension_settings[extensionName].selectedModel;
-            if (selectedModel === 'chat_completion') {
-                result = await handleChatCompletionRewriteForTextarea(selectedText, option, tempSpan);
-            } else {
-                result = await handleSimplifiedChatCompletionRewriteForTextarea(selectedText, option, tempSpan);
-            }
+    if (main_api === 'openai') {
+        const selectedModel = extension_settings[extensionName].selectedModel;
+        if (selectedModel === 'chat_completion') {
+            result = await handleChatCompletionRewrite(null, null, option);
         } else {
-            result = await handleTextBasedRewriteForTextarea(selectedText, option, tempSpan);
+            result = await handleSimplifiedChatCompletionRewrite(null, null, option);
         }
+    } else {
+        result = await handleTextBasedRewrite(null, null, option);
+    }
 
-        // Update textarea with the result
+    if (result) {
         textarea.value = text.substring(0, start) + result + text.substring(end);
         textarea.selectionStart = start;
         textarea.selectionEnd = start + result.length;
         textarea.focus();
-
-        // Remove the temporary span after the highlight duration
-        setTimeout(() => {
-            tempSpan.remove();
-        }, extension_settings[extensionName].highlightDuration);
-
-    } catch (error) {
-        console.error('Error during textarea rewrite:', error);
-        tempSpan.remove();
     }
 }
 
